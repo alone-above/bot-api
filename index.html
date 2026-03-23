@@ -770,7 +770,7 @@ function initTelegram() {
 // ══════════════════════════════════════════════
 
 // The bot server URL — replace with your actual domain/IP
-const BOT_API = 'bot-api-production-aac3.up.railway.app'; // автоматически берёт URL этого же сервиса
+const BOT_API = window.location.origin; // автоматически берёт URL этого сервиса
 
 async function apiCall(endpoint, method = 'GET', body = null) {
   const headers = {
