@@ -441,6 +441,7 @@
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   .toast.accent { border-color: var(--accent); color: var(--accent); }
   .toast.error { border-color: var(--danger); color: var(--danger); }
+  .toast.warning { border-color: var(--warning); color: var(--warning); }
 
   /* ── EMPTY STATE ── */
   .empty-state { text-align: center; padding: 60px 20px; }
@@ -717,7 +718,6 @@
 // CONFIG
 // ══════════════════════════════════════════════
 const API_BASE = 'https://gondola.proxy.rlwy.net:11159';
-const DB_URL = 'postgresql://postgres:kfxhYsfLjweUluaKmZjONYgWuMZaXrHQ@gondola.proxy.rlwy.net:11159/railway';
 
 // We'll use a backend-less approach via Telegram WebApp + direct API calls
 // Since direct PostgreSQL from browser is not possible, we'll create a simple REST backend
@@ -770,7 +770,7 @@ function initTelegram() {
 // ══════════════════════════════════════════════
 
 // The bot server URL — replace with your actual domain/IP
-const BOT_API = window.Telegram.WebApp'; // автоматически берёт URL этого сервиса
+const BOT_API = window.location.origin; // автоматически берёт URL этого сервиса
 
 async function apiCall(endpoint, method = 'GET', body = null) {
   const headers = {
@@ -854,7 +854,13 @@ function navTo(page) {
 
 function onPageEnter(page) {
   console.log('%c📄 onPageEnter() вызвана для страницы:', 'color: #b8f548; font-weight: bold', page);
-  
+
+  // Always stop profile refresh interval when leaving profile
+  if (page !== 'profile' && state.profileRefreshInterval) {
+    clearInterval(state.profileRefreshInterval);
+    state.profileRefreshInterval = null;
+  }
+
   if (page === 'catalog') {
     console.log('%c📂 Переходим в каталог, вызываем showCatList() и loadCategories()', 'color: #44dd88; font-weight: bold');
     showCatList();
@@ -869,11 +875,7 @@ function onPageEnter(page) {
   } else if (page === 'home') {
     updateHomeStats();
   } else {
-    // Stop profile refresh when leaving profile page
-    if (state.profileRefreshInterval) {
-      clearInterval(state.profileRefreshInterval);
-      state.profileRefreshInterval = null;
-    }
+    // about, support and other pages — no special action needed
   }
 }
 
