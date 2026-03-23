@@ -3,10 +3,8 @@ api.py — FastAPI для мини-аппа
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import asyncio
-import os
 from datetime import datetime
 
 from db.catalog import get_categories, get_products, get_product
@@ -37,12 +35,6 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     return {"status": "API is running", "message": "✅ API работает!"}
-
-# Отдаём index.html для Telegram Mini App
-@app.get("/")
-async def serve_index():
-    index_path = os.path.join(os.path.dirname(__file__), "index.html")
-    return FileResponse(index_path, media_type="text/html")
 
 # Debug info
 @app.get("/debug")
