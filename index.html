@@ -746,7 +746,6 @@ function initTelegram() {
     const u = tg.initDataUnsafe?.user;
     if (u) {
       currentUser = u;
-      console.log('%c✅ Telegram User:', 'color: #44dd88; font-weight: bold', currentUser);
     }
   }
   
@@ -758,8 +757,6 @@ function initTelegram() {
       first_name: 'Test',
       username: 'testuser'
     };
-    console.log('%c⚠️ Используется тестовый пользователь:', 'color: #ffaa33; font-weight: bold', currentUser);
-    console.log('%c💡 Чтобы изменить ID, выполни в консоли: localStorage.setItem("testUserId", "123456")', 'color: #b8f548');
   }
 }
 
@@ -778,7 +775,6 @@ async function apiCall(endpoint, method = 'GET', body = null) {
   };
   try {
     const url = BOT_API + endpoint;
-    console.log('%cAPI CALL:', 'color: #b8f548; font-weight: bold', method, url, body);
     
     const opts = { method, headers };
     if (body) opts.body = JSON.stringify(body);
@@ -786,15 +782,12 @@ async function apiCall(endpoint, method = 'GET', body = null) {
     const r = await fetch(url, opts);
     const data = await r.json();
     
-    console.log('%cAPI RESPONSE:', 'color: #44dd88; font-weight: bold', endpoint, data);
     
     if (!r.ok) {
-      console.error('%cAPI ERROR:', 'color: #ff4466; font-weight: bold', r.status, data);
       return null;
     }
     return data;
   } catch (e) {
-    console.error('%cAPI FETCH ERROR:', 'color: #ff4466; font-weight: bold', endpoint, e.message);
     return null;
   }
 }
@@ -830,7 +823,6 @@ let state = {
 let pageHistory = ['home'];
 
 function navTo(page) {
-  console.log('%c🔀 navTo() вызвана с page:', 'color: #b8f548; font-weight: bold', page);
   
   const pages = document.querySelectorAll('.page');
   pages.forEach(p => p.classList.remove('active'));
@@ -839,9 +831,7 @@ function navTo(page) {
   if (target) {
     target.classList.add('active');
     document.getElementById('pages').scrollTop = 0;
-    console.log('%c✅ Страница активирована:', 'color: #44dd88; font-weight: bold', 'page-' + page);
   } else {
-    console.error('%c❌ Страница не найдена:', 'color: #ff4466; font-weight: bold', 'page-' + page);
   }
   
   document.querySelectorAll('.nav-item').forEach(n => {
@@ -853,7 +843,6 @@ function navTo(page) {
 }
 
 function onPageEnter(page) {
-  console.log('%c📄 onPageEnter() вызвана для страницы:', 'color: #b8f548; font-weight: bold', page);
 
   // Always stop profile refresh interval when leaving profile
   if (page !== 'profile' && state.profileRefreshInterval) {
@@ -862,7 +851,6 @@ function onPageEnter(page) {
   }
 
   if (page === 'catalog') {
-    console.log('%c📂 Переходим в каталог, вызываем showCatList() и loadCategories()', 'color: #44dd88; font-weight: bold');
     showCatList();
     loadCategories();
   } else if (page === 'cart') {
@@ -883,28 +871,22 @@ function onPageEnter(page) {
 // CATEGORIES & PRODUCTS
 // ══════════════════════════════════════════════
 async function loadCategories() {
-  console.log('%c📂 loadCategories() вызвана', 'color: #b8f548; font-weight: bold');
   
   const grid = document.getElementById('cat-grid');
   if (!grid) {
-    console.error('%c❌ Ошибка! Element с ID "cat-grid" не найден!', 'color: #ff4466; font-weight: bold');
     return;
   }
   
   grid.innerHTML = '<div class="spinner"><div class="spin"></div></div>';
   
   let res = await apiCall('/categories');
-  console.log('%c📦 Ответ от API /categories:', 'color: #44dd88; font-weight: bold', res);
   
   let cats = res?.categories || [];
-  console.log('%c📊 Количество категорий:', 'color: #44dd88; font-weight: bold', cats.length);
   
   if (cats.length > 0) {
-    console.log('%c✅ Категории найдены! Рендеринг...', 'color: #44dd88; font-weight: bold', cats);
     state.categories = cats;
     renderCatGrid(cats);
   } else {
-    console.warn('%c⚠️ Категории пусты!', 'color: #ffaa33; font-weight: bold');
     grid.innerHTML = `<div class="empty-state" style="grid-column:span 2;padding:40px 0;">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       <h3>КАТАЛОГ ПУСТ</h3><p>Товары скоро появятся</p></div>`;
@@ -926,16 +908,13 @@ function getCatIcon(name, idx) {
 }
 
 function renderCatGrid(cats) {
-  console.log('%c🎨 renderCatGrid() вызвана с категориями:', 'color: #b8f548; font-weight: bold', cats);
   
   const grid = document.getElementById('cat-grid');
   if (!grid) {
-    console.error('%c❌ Ошибка! Element с ID "cat-grid" не найден!', 'color: #ff4466; font-weight: bold');
     return;
   }
   
   if (!cats.length) {
-    console.warn('%c⚠️ Список категорий пуст', 'color: #ffaa33; font-weight: bold');
     grid.innerHTML = `<div class="empty-state" style="grid-column:span 2"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg><h3>ПУСТО</h3><p>Категории не найдены</p></div>`;
     return;
   }
@@ -948,7 +927,6 @@ function renderCatGrid(cats) {
     </div>
   `).join('');
   
-  console.log('%c✅ HTML для категорий сгенерирован, вставляю в DOM', 'color: #44dd88; font-weight: bold');
   grid.innerHTML = html;
 }
 
@@ -968,21 +946,16 @@ async function openCategory(cid, name) {
 }
 
 function showCatList() {
-  console.log('%c📂 showCatList() вызвана', 'color: #b8f548; font-weight: bold');
   
   const catView = document.getElementById('catalog-categories-view');
   const prodView = document.getElementById('catalog-products-view');
   const detailView = document.getElementById('catalog-detail-view');
   
-  if (!catView) console.error('%c❌ Element "catalog-categories-view" не найден!', 'color: #ff4466; font-weight: bold');
-  if (!prodView) console.error('%c❌ Element "catalog-products-view" не найден!', 'color: #ff4466; font-weight: bold');
-  if (!detailView) console.error('%c❌ Element "catalog-detail-view" не найден!', 'color: #ff4466; font-weight: bold');
   
   if (catView) catView.style.display = 'block';
   if (prodView) prodView.style.display = 'none';
   if (detailView) detailView.style.display = 'none';
   
-  console.log('%c✅ showCatList() завершена', 'color: #44dd88; font-weight: bold');
 }
 
 function renderProdList(prods) {
@@ -1145,14 +1118,11 @@ function renderCart() {
 
 async function syncCartWithServer() {
   if (!currentUser || !currentUser.id) {
-    console.warn('%c⚠️ Нет user ID для синхронизации корзины', 'color: #ffaa33; font-weight: bold');
     return;
   }
   
-  console.log('%c🔄 Синхронизация корзины пользователя:', 'color: #b8f548; font-weight: bold', currentUser.id);
   const res = await apiCall('/cart/' + currentUser.id);
   const serverCart = res?.cart || [];
-  console.log('%c📦 Корзина с сервера:', 'color: #44dd88; font-weight: bold', serverCart);
   
   if (serverCart && Array.isArray(serverCart)) {
     // merge server cart with local
@@ -1208,10 +1178,8 @@ async function renderWishlist() {
   
   // Try sync with server
   if (currentUser && currentUser.id) {
-    console.log('%c💚 Загрузка избранного пользователя:', 'color: #b8f548; font-weight: bold', currentUser.id);
     const res = await apiCall('/wishlist/' + currentUser.id);
     const sw = res?.wishlist || [];
-    console.log('%c♥ Избранное с сервера:', 'color: #44dd88; font-weight: bold', sw);
     if (sw && Array.isArray(sw)) {
       state.wishlist = sw.map(w => ({ product_id: w.product_id, name: w.name || 'Товар', price: w.price || 0, image_url: w.card_file_id || null }));
       lsSet('wishlist', state.wishlist);
@@ -1265,7 +1233,6 @@ function updateHomeWishCount() {
 // ══════════════════════════════════════════════
 async function renderProfile() {
   const u = currentUser || tg?.initDataUnsafe?.user || {};
-  console.log('%c👤 Рендеринг профиля пользователя:', 'color: #b8f548; font-weight: bold', u);
   
   // Show TG user data immediately
   const nameEl = document.getElementById('profile-name');
@@ -1282,10 +1249,8 @@ async function renderProfile() {
 
   // Load server data
   if (u.id) {
-    console.log('%c📡 Загрузка данных профиля из API для user ID:', 'color: #44dd88; font-weight: bold', u.id);
     const res = await apiCall('/profile/' + u.id);
     const userData = res?.profile;
-    console.log('%c💾 Данные профиля с сервера:', 'color: #44dd88; font-weight: bold', userData);
     if (userData) {
       document.getElementById('profile-bonus').textContent = '🌿 ' + fmt(userData.bonus_balance || 0) + ' ₸ бонусов';
       document.getElementById('pstat-orders').textContent = userData.total_purchases || 0;
@@ -1318,12 +1283,10 @@ async function loadOrders() {
   list.innerHTML = '<div class="spinner"><div class="spin"></div></div>';
   
   const userId = currentUser?.id || 999999;
-  console.log('%c📦 Загрузка заказов для user_id:', 'color: #b8f548; font-weight: bold', userId);
   
   const orders = await apiCall('/orders/' + userId);
   const orderList = orders?.orders || [];
   
-  console.log('%c📋 Полученные заказы:', 'color: #44dd88; font-weight: bold', orderList);
   
   if (!orderList || !orderList.length) {
     list.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg><h3>ЗАКАЗОВ НЕТ</h3><p>Ваши заказы появятся здесь</p></div>`;
@@ -1385,9 +1348,6 @@ async function placeOrder() {
   btn.disabled = true;
   btn.textContent = 'ОФОРМЛЯЕМ...';
 
-  console.log('%c📦 placeOrder() - Отправляем заказ на сервер', 'color: #b8f548; font-weight: bold');
-  console.log('%c📋 Товары:', 'color: #44dd88; font-weight: bold', state.cart);
-  console.log('%c👤 User ID:', 'color: #44dd88; font-weight: bold', currentUser?.id);
   
   const result = await apiCall('/order/create', 'POST', {
     items: state.cart.map(c => ({ product_id: c.product_id, size: c.size })),
@@ -1398,13 +1358,11 @@ async function placeOrder() {
   btn.disabled = false;
   btn.textContent = 'ОФОРМИТЬ';
 
-  console.log('%c✅ Ответ сервера:', 'color: #44dd88; font-weight: bold', result);
 
   if (result && result.success) {
     const orderId = result.order_id;
     const paymentInfo = result.payment_info;
     
-    console.log('%c🎉 Заказ успешно создан:', 'color: #44dd88; font-weight: bold', orderId);
     
     // Показываем информацию об оплате
     closeCheckout();
@@ -1482,10 +1440,8 @@ async function placeOrder() {
     
     showToast(`✅ Заказ #${orderId} создан! Переведите ${paymentInfo.amount} ₸ на Kaspi`, 'accent');
   } else if (result && result.error) {
-    console.error('%c❌ Ошибка сервера:', 'color: #ff4466; font-weight: bold', result.error);
     showToast('❌ ' + result.error, 'error');
   } else {
-    console.error('%c❌ Неизвестная ошибка при создании заказа', 'color: #ff4466; font-weight: bold');
     // Fallback - показываем простое сообщение
     closeCheckout();
     showToast('⚠️ Заказ отправлен менеджеру. Ожидайте подтверждения.', 'warning');
@@ -1542,23 +1498,17 @@ function showToast(msg, type = '') {
 // INIT
 // ══════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
-  console.log('%c🚀 ПРИЛОЖЕНИЕ ЗАГРУЖАЕТСЯ', 'color: #b8f548; font-size: 16px; font-weight: bold');
   
   // Проверяем здоровье API
   const healthCheck = await apiCall('/health');
   if (healthCheck?.status === 'API is running') {
-    console.log('%c✅ API РАБОТАЕТ!', 'color: #44dd88; font-weight: bold', healthCheck);
   } else {
-    console.warn('%c⚠️ API НЕ ДОСТУПНА ИЛИ НЕ ОТВЕЧАЕТ', 'color: #ffaa33; font-weight: bold');
     showToast('⚠️ API не доступна. Проверьте сервер.', 'warning');
   }
   
   // Проверяем debug информацию
   const debugInfo = await apiCall('/debug');
-  console.log('%c📊 DEBUG INFO:', 'color: #b8f548; font-weight: bold', debugInfo);
   if (!debugInfo?.categories_count || debugInfo.categories_count === 0) {
-    console.error('%c❌ В БД НЕТ КАТЕГОРИЙ!', 'color: #ff4466; font-weight: bold');
-    console.warn('%c⚠️ Нужно добавить товары и категории в БД', 'color: #ffaa33; font-weight: bold');
   }
   
   initTelegram();
