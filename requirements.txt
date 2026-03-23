@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+asyncpg
+aiohttp==3.10.5
+python-dotenv==1.0.1
+aiogram==3.13.1
+pydantic
