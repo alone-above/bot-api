@@ -191,6 +191,41 @@ async def proc_cart_promo(msg: types.Message, state: FSMContext):
     )
 
 
+@router.callback_query(F.data.startswith("cart_add_"))
+async def cb_cart_add(cb: types.CallbackQuery):
+    """Кнопка «В корзину» на карточке товара — показываем выбор размера."""
+    pid = int(cb.data.split("_")[2])
+    p = await get_product(pid)
+    if not p:
+        await cb.answer("Товар не найден", show_alert=True)
+        return
+    if p["stock"] <= 0:
+        await cb.answer("Нет в наличии", show_alert=True)
+        return
+    sizes = parse_sizes(p)
+    if not sizes:
+        # Нет размеров — добавляем сразу как ONE SIZE
+        already = await cart_has(cb.from_user.id, pid, "ONE SIZE")
+        if already:
+            await cb.answer("Уже в корзине", show_alert=True)
+            return
+        await cart_add(cb.from_user.id, pid, "ONE SIZE")
+        await cb.answer("🛒 Добавлено в корзину!")
+        return
+    # Показываем кнопки выбора размера
+    rows = [[btn(s, f"cart_addsize_{pid}_{s}", icon="size")] for s in sizes]
+    rows.append([btn("Назад", f"prod_{pid}", icon="back")])
+    text = (
+        f"{ae('cart')} <b>Выберите размер</b>\n\n"
+        f"<blockquote>Товар: <b>{p['name']}</b></blockquote>"
+    )
+    try:
+        await cb.message.edit_text(text, parse_mode="HTML", reply_markup=kb(*rows, include_main=False))
+    except Exception:
+        await cb.message.answer(text, parse_mode="HTML", reply_markup=kb(*rows, include_main=False))
+    await cb.answer()
+
+
 @router.callback_query(F.data.startswith("cart_addsize_"))
 async def cb_cart_addsize(cb: types.CallbackQuery):
     parts = cb.data.split("_", 3)
