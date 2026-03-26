@@ -127,6 +127,33 @@ async def get_single_product(product_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# Галерея товара
+@app.get("/products/{product_id}/gallery")
+async def get_product_gallery(product_id: int):
+    try:
+        product = await get_product(product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        import json
+        gallery = []
+        try:
+            gallery = json.loads(product.get("gallery") or "[]")
+        except Exception:
+            pass
+        # Include card as first image if exists
+        card_fid = product.get("card_file_id", "")
+        card_mt  = product.get("card_media_type", "photo")
+        return {
+            "gallery": gallery,
+            "card_file_id": card_fid,
+            "card_media_type": card_mt,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Корзина
 @app.get("/cart/{user_id}")
 async def get_user_cart(user_id: int):
