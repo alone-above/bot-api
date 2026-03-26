@@ -18,7 +18,8 @@ const State = {
   searchQuery: '',
   currentProduct: null,
   currentImgIndex: 0,
-  apiBase: 'bot-api-production-2f78.up.railway.app',
+  apiBase: 'https://bot-api-production-2f78.up.railway.app',
+  _promoData: null,
 };
 
 // ─── Telegram WebApp Init ─────────────────────────────
@@ -43,7 +44,12 @@ function lsSet(key, val) {
 
 // ─── Toast ────────────────────────────────────────────
 function toast(msg, type = 'info', dur = 2500) {
-  const icons = { success: '✅', error: '❌', info: 'ℹ️', cart: '🛒' };
+  const icons = {
+    success: `<img src="assets/cube.svg" style="width:16px;height:16px;filter:invert(1)">`,
+    error: `<img src="assets/free-icon-font-interrogation-3916693.svg" style="width:16px;height:16px;filter:invert(1)">`,
+    info: `<img src="assets/bell.svg" style="width:16px;height:16px;filter:invert(1)">`,
+    cart: `<img src="assets/shopping-cart.svg" style="width:16px;height:16px;filter:invert(1)">`,
+  };
   const el = document.createElement('div');
   el.className = `toast toast-${type}`;
   el.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span>${msg}</span>`;
@@ -85,12 +91,18 @@ function cartSave() { lsSet('cart_v2', State.cart); }
 
 function cartAdd(product, size) {
   const existing = State.cart.find(i => i.product_id == product.id && i.size === size);
-  if (existing) { toast('Уже в корзине', 'info'); return; }
+  if (existing) {
+    existing.qty = (existing.qty || 1) + 1;
+    cartSave(); updateCartBadge();
+    toast('Количество увеличено', 'cart');
+    return;
+  }
   State.cart.push({
     product_id: product.id,
     name: product.name,
     price: product.price,
     size,
+    qty: 1,
     card_file_id: product.card_file_id || '',
     card_media_type: product.card_media_type || '',
   });
@@ -106,7 +118,6 @@ function cartRemove(productId, size) {
   updateCartBadge();
   renderCart();
 }
-
 function cartClear() { State.cart = []; cartSave(); updateCartBadge(); renderCart(); }
 
 function updateCartBadge() {
@@ -162,13 +173,35 @@ function navigate(page) {
 }
 
 // ─── Product image helper ─────────────────────────────
-function productImg(p, cls = '') {
-  if (p.card_file_id) {
-    // Telegram file_id — need to use a proxy or show placeholder
-    return `<div class="product-card__img-placeholder ${cls}">🛍️</div>`;
+const _imgCache = {};
+
+async function loadProductImgEl(fileId, imgEl, phEl) {
+  if (!fileId || !State.apiBase) return;
+  if (_imgCache[fileId]) {
+    imgEl.src = _imgCache[fileId]; imgEl.style.display = 'block';
+    if (phEl) phEl.style.display = 'none';
+    return;
   }
-  // Attempt direct URL in description or fallback
-  return `<div class="product-card__img-placeholder ${cls}">🛍️</div>`;
+  try {
+    const res = await fetch(`${State.apiBase}/file-url?file_id=${encodeURIComponent(fileId)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.url) {
+      _imgCache[fileId] = data.url;
+      imgEl.src = data.url;
+      imgEl.style.display = 'block';
+      if (phEl) phEl.style.display = 'none';
+    }
+  } catch {}
+}
+
+function loadGridImages(products) {
+  products.forEach(p => {
+    if (!p.card_file_id) return;
+    const imgEl = document.getElementById(`img-${p.id}`);
+    const phEl = document.getElementById(`ph-${p.id}`);
+    if (imgEl) loadProductImgEl(p.card_file_id, imgEl, phEl);
+  });
 }
 
 // ─── Format price ─────────────────────────────────────
@@ -201,6 +234,7 @@ function renderHome() {
     const featured = State.products.slice(0, 4);
     if (featured.length) {
       featuredEl.innerHTML = featured.map((p, i) => productCardHTML(p, `delay-${i+1}`)).join('');
+      requestAnimationFrame(() => loadGridImages(featured));
     } else {
       featuredEl.innerHTML = skeletonGrid(4);
     }
@@ -212,6 +246,7 @@ function renderHome() {
     const newArr = State.products.slice(4, 8);
     if (newArr.length) {
       newEl.innerHTML = newArr.map((p, i) => productCardHTML(p, `delay-${i+1}`)).join('');
+      requestAnimationFrame(() => loadGridImages(newArr));
     } else {
       newEl.innerHTML = State.products.length === 0 ? skeletonGrid(4) : '';
     }
@@ -241,26 +276,107 @@ function productCardHTML(p, animClass = '') {
   const favActive = isFav(p.id) ? 'active' : '';
   const favFill = isFav(p.id) ? 'fill="#ff6b6b" stroke="#ff6b6b"' : 'stroke="currentColor" fill="none"';
   const inStock = p.stock > 0;
+  const cartItem = State.cart.find(i => i.product_id == p.id);
+  const inCart = !!cartItem;
+  const qty = cartItem ? cartItem.qty : 0;
 
   return `<div class="product-card animate-fade ${animClass}" onclick="openProduct(${p.id})">
     ${hasDiscount ? `<div class="product-card__badge">-${discPct}%</div>` : ''}
     <button class="product-card__wish ${favActive}" onclick="event.stopPropagation();wishToggle(${p.id},this)" aria-label="Избранное">
       <svg viewBox="0 0 24 24" ${favFill} stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
     </button>
-    <div class="product-card__img-placeholder">🛍️</div>
+    <div class="product-card__img-wrap">
+      <div class="product-card__img-placeholder" id="ph-${p.id}"><img src="assets/shopping-cart.svg" style="width:36px;opacity:.25"></div>
+      ${p.card_file_id ? `<img class="product-card__img" id="img-${p.id}" src="" alt="${p.name}" style="display:none" loading="lazy">` : ''}
+    </div>
     ${!inStock ? `<div class="product-card__no-stock"><span>Нет в наличии</span></div>` : ''}
     <div class="product-card__body">
       <div class="product-card__name">${p.name}</div>
-      <div style="display:flex;align-items:center;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:8px">
         <span class="product-card__price">${fmtPrice(p.price)}</span>
         ${hasDiscount ? `<span class="product-card__original">${fmtPrice(p.original_price)}</span>` : ''}
       </div>
+      ${inStock ? `
+      <div class="product-card__cart-row" id="cart-row-${p.id}" onclick="event.stopPropagation()">
+        ${inCart ? `
+        <div class="cart-qty-ctrl">
+          <button class="cart-qty-btn" onclick="cardCartDec(${p.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <span class="cart-qty-num">${qty}</span>
+          <button class="cart-qty-btn" onclick="cardCartInc(${p.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <button class="cart-remove-btn" onclick="cardCartRemove(${p.id})"><img src="assets/free-icon-font-trash-3917378.svg" style="width:14px;filter:invert(.5)"></button>
+        </div>
+        ` : `
+        <button class="btn-add-cart" onclick="quickAddToCart(${p.id})">
+          <img src="assets/shopping-cart.svg" style="width:14px;filter:invert(1);margin-right:4px">В корзину
+        </button>
+        `}
+      </div>` : ''}
     </div>
   </div>`;
 }
 
-function wishToggle(pid, btn) {
-  const isNow = favToggle(pid);
+// ─── Quick cart controls from product card ────────────
+function quickAddToCart(pid) {
+  const p = State.products.find(x => x.id == pid);
+  if (!p) return;
+  const sizes = parseSizes(p.sizes);
+  if (sizes.length > 1) {
+    // Open product detail to pick size
+    _openProductCore(pid);
+    return;
+  }
+  const size = sizes[0] || 'ONE SIZE';
+  cartAdd(p, size);
+  _refreshCardCartRow(pid);
+}
+
+function cardCartInc(pid) {
+  const item = State.cart.find(i => i.product_id == pid);
+  if (item) { item.qty = (item.qty || 1) + 1; cartSave(); updateCartBadge(); _refreshCardCartRow(pid); renderCart(); }
+}
+
+function cardCartDec(pid) {
+  const item = State.cart.find(i => i.product_id == pid);
+  if (!item) return;
+  item.qty = (item.qty || 1) - 1;
+  if (item.qty <= 0) { cartRemoveById(pid); } else { cartSave(); updateCartBadge(); }
+  _refreshCardCartRow(pid);
+  renderCart();
+}
+
+function cardCartRemove(pid) {
+  cartRemoveById(pid);
+  _refreshCardCartRow(pid);
+  renderCart();
+}
+
+function cartRemoveById(pid) {
+  State.cart = State.cart.filter(i => i.product_id != pid);
+  cartSave();
+  updateCartBadge();
+}
+
+function _refreshCardCartRow(pid) {
+  const p = State.products.find(x => x.id == pid);
+  if (!p) return;
+  const row = document.getElementById(`cart-row-${pid}`);
+  if (!row) return;
+  const item = State.cart.find(i => i.product_id == pid);
+  if (item) {
+    row.innerHTML = `<div class="cart-qty-ctrl">
+      <button class="cart-qty-btn" onclick="cardCartDec(${pid})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      <span class="cart-qty-num">${item.qty || 1}</span>
+      <button class="cart-qty-btn" onclick="cardCartInc(${pid})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      <button class="cart-remove-btn" onclick="cardCartRemove(${pid})"><img src="assets/free-icon-font-trash-3917378.svg" style="width:14px;filter:invert(.5)"></button>
+    </div>`;
+  } else {
+    row.innerHTML = `<button class="btn-add-cart" onclick="quickAddToCart(${pid})">
+      <img src="assets/shopping-cart.svg" style="width:14px;filter:invert(1);margin-right:4px">В корзину
+    </button>`;
+  }
+}
+
+function wishToggle(pid, btn) {  const isNow = favToggle(pid);
   if (btn) {
     btn.classList.toggle('active', isNow);
     btn.innerHTML = isNow
@@ -303,13 +419,14 @@ function renderProductGrid() {
   }
   if (!prods.length) {
     el.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
-      <div class="empty-state__icon">🔍</div>
+      <div class="empty-state__icon"><img src="assets/search.svg" style="width:40px;opacity:.4"></div>
       <div class="empty-state__title">Ничего не найдено</div>
       <div class="empty-state__desc">Попробуйте изменить фильтры</div>
     </div>`;
     return;
   }
   el.innerHTML = prods.map((p, i) => productCardHTML(p, `delay-${(i % 4) + 1}`)).join('');
+  requestAnimationFrame(() => loadGridImages(prods));
 }
 
 // ─── Open Product ─────────────────────────────────────
@@ -329,7 +446,18 @@ function _openProductCore(pid) {
   State.tg?.BackButton?.show?.();
   State.tg?.BackButton?.onClick?.(() => closeProduct());
   document.body.style.overflow = 'hidden';
-  requestAnimationFrame(() => initGalleryTouch());
+  requestAnimationFrame(() => {
+    initGalleryTouch();
+    // Load gallery images
+    const items = State._galleryItems || [];
+    items.forEach((g, i) => {
+      if (g.file_id) {
+        const imgEl = document.getElementById(`gimg-${i}`);
+        const phEl = document.getElementById(`gslide-${i}`);
+        if (imgEl) loadProductImgEl(g.file_id, imgEl, phEl);
+      }
+    });
+  });
 }
 
 function closeProduct() {
@@ -390,7 +518,10 @@ function renderProductDetail(p) {
           <div class="gallery-track" id="gallery-track" style="display:flex;transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);width:${galleryItems.length * 100}%">
             ${galleryItems.map((g, i) => `
               <div style="width:${100 / galleryItems.length}%;flex-shrink:0;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;background:var(--bg3)">
-                <div class="gallery-slide-ph" data-idx="${i}" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:80px">🛍️</div>
+                <div class="gallery-slide-ph" id="gslide-${i}" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center">
+                  <img src="assets/shopping-cart.svg" style="width:48px;opacity:.2">
+                </div>
+                <img id="gimg-${i}" src="" alt="" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0">
               </div>`).join('')}
           </div>
           ${galleryItems.length > 1 ? `
@@ -530,24 +661,54 @@ function renderCart() {
   if (summaryEl) summaryEl.style.display = 'block';
   if (checkoutEl) checkoutEl.style.display = 'flex';
 
-  el.innerHTML = State.cart.map((item, idx) => `
-    <div class="cart-item animate-fade delay-${(idx % 4) + 1}">
-      <div class="cart-item__img-ph">🛍️</div>
+  el.innerHTML = State.cart.map((item, idx) => {
+    const qty = item.qty || 1;
+    return `<div class="cart-item animate-fade delay-${(idx % 4) + 1}">
+      <div class="cart-item__img-ph">
+        <img src="assets/shopping-cart.svg" style="width:24px;opacity:.3">
+      </div>
       <div class="cart-item__info">
         <div class="cart-item__name">${item.name}</div>
         <div class="cart-item__size">Размер: ${item.size}</div>
-        <div class="cart-item__price">${fmtPrice(item.price)}</div>
+        <div class="cart-item__price">${fmtPrice(item.price * qty)}</div>
       </div>
-      <button class="cart-item__remove" onclick="cartRemove(${item.product_id},'${item.size}')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-      </button>
-    </div>`).join('');
+      <div class="cart-item__qty-ctrl">
+        <button class="cart-qty-btn" onclick="cartDecQty(${item.product_id},'${item.size}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <span class="cart-qty-num">${qty}</span>
+        <button class="cart-qty-btn" onclick="cartIncQty(${item.product_id},'${item.size}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="cart-item__remove" onclick="cartRemove(${item.product_id},'${item.size}')">
+          <img src="assets/free-icon-font-trash-3917378.svg" style="width:16px;filter:invert(.5)">
+        </button>
+      </div>
+    </div>`;
+  }).join('');
 
-  const total = State.cart.reduce((s, i) => s + i.price, 0);
+  const total = State.cart.reduce((s, i) => s + i.price * (i.qty || 1), 0);
+  const discount = State._promoData?.discount || 0;
+  const finalTotal = Math.max(total - discount, 0);
+
   if (summaryEl) summaryEl.innerHTML = `
-    <div class="cart-summary__row"><span>Товаров</span><span>${State.cart.length} шт.</span></div>
-    <div class="cart-summary__row"><span style="font-size:16px">Итого</span><span class="cart-summary__total">${fmtPrice(total)}</span></div>
+    <div class="cart-summary__row"><span>Товаров</span><span>${State.cart.reduce((s,i)=>s+(i.qty||1),0)} шт.</span></div>
+    ${discount ? `<div class="cart-summary__row" style="color:var(--primary)"><span>Скидка (${State._promoData?.code})</span><span>-${fmtPrice(discount)}</span></div>` : ''}
+    <div class="cart-summary__row"><span style="font-size:16px">Итого</span><span class="cart-summary__total">${fmtPrice(finalTotal)}</span></div>
   `;
+}
+
+function cartIncQty(pid, size) {
+  const item = State.cart.find(i => i.product_id == pid && i.size === size);
+  if (item) { item.qty = (item.qty || 1) + 1; cartSave(); updateCartBadge(); renderCart(); }
+}
+
+function cartDecQty(pid, size) {
+  const item = State.cart.find(i => i.product_id == pid && i.size === size);
+  if (!item) return;
+  item.qty = (item.qty || 1) - 1;
+  if (item.qty <= 0) cartRemove(pid, size);
+  else { cartSave(); updateCartBadge(); renderCart(); }
 }
 
 // ─── Checkout ─────────────────────────────────────────
@@ -555,6 +716,14 @@ function openCheckout() {
   if (!State.cart.length) { toast('Корзина пуста', 'error'); return; }
   const el = document.getElementById('checkout-modal');
   if (el) el.style.display = 'flex';
+  // Fill total
+  const total = State.cart.reduce((s, i) => s + i.price * (i.qty || 1), 0);
+  const discount = State._promoData?.discount || 0;
+  const totalEl = document.getElementById('checkout-total');
+  if (totalEl) totalEl.textContent = fmtPrice(Math.max(total - discount, 0));
+  // Pre-fill phone from user profile
+  const phoneEl = document.getElementById('checkout-phone');
+  if (phoneEl && !phoneEl.value && State.user) phoneEl.value = '';
 }
 function closeCheckout() {
   const el = document.getElementById('checkout-modal');
@@ -575,7 +744,7 @@ async function submitOrder() {
   try {
     const res = await apiPost('/order/create', {
       user_id: State.user?.id,
-      items: State.cart.map(i => ({ product_id: i.product_id, size: i.size })),
+      items: State.cart.map(i => ({ product_id: i.product_id, size: i.size, qty: i.qty || 1 })),
       phone, address,
       promo_code: promo || '',
       method: 'kaspi',
@@ -583,16 +752,26 @@ async function submitOrder() {
 
     if (res?.success) {
       closeCheckout();
+      const receipt = res.receipt;
       cartClear();
-      const oid = res.order_id;
+      State._promoData = null;
+
+      const kaspiPhone = State.config?.contact?.kaspi_phone || '+7 707 811 5621';
       const amount = res.payment_info?.amount;
-      const kaspiPhone = State.config?.contact?.kaspi_phone || res.payment_info?.phone;
-      // Show payment info
+      const oid = res.order_id;
+
       const successEl = document.getElementById('order-success-modal');
       if (successEl) {
         document.getElementById('success-order-id').textContent = `#${oid}`;
         document.getElementById('success-amount').textContent = fmtPrice(amount);
         document.getElementById('success-kaspi').textContent = kaspiPhone;
+        // Show receipt link
+        if (receipt) {
+          const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(receipt))));
+          const receiptUrl = `${State.apiBase}/receipt?data=${b64}`;
+          const linkEl = document.getElementById('success-receipt-link');
+          if (linkEl) { linkEl.href = receiptUrl; linkEl.style.display = 'flex'; }
+        }
         successEl.style.display = 'flex';
       }
       State.tg?.HapticFeedback?.notificationOccurred?.('success');
@@ -603,6 +782,31 @@ async function submitOrder() {
     toast('Ошибка соединения', 'error');
   } finally {
     if (btn) { btn.textContent = 'Оформить заказ'; btn.disabled = false; }
+  }
+}
+
+// ─── Promo code check ─────────────────────────────────
+async function applyPromo() {
+  const code = document.getElementById('checkout-promo')?.value?.trim();
+  if (!code) { toast('Введите промокод', 'error'); return; }
+  const btn = document.getElementById('promo-apply-btn');
+  if (btn) { btn.textContent = '...'; btn.disabled = true; }
+  const res = await apiPost('/promo/check', { code, user_id: State.user?.id || 0 });
+  if (btn) { btn.textContent = 'Применить'; btn.disabled = false; }
+  if (res?.valid) {
+    const total = State.cart.reduce((s, i) => s + i.price * (i.qty || 1), 0);
+    let discount = 0;
+    if (res.promo_type === 'discount_percent') discount = Math.round(total * res.value / 100);
+    else if (res.promo_type === 'discount_fixed') discount = Math.min(res.value, total);
+    State._promoData = { code, discount, info: res.description };
+    toast(`Промокод применён! Скидка ${fmtPrice(discount)}`, 'success');
+    renderCart();
+    // Update checkout total display
+    const totalEl = document.getElementById('checkout-total');
+    if (totalEl) totalEl.textContent = fmtPrice(Math.max(total - discount, 0));
+  } else {
+    State._promoData = null;
+    toast(res?.error || 'Промокод не найден', 'error');
   }
 }
 
@@ -942,6 +1146,7 @@ State._reviewRating = 0;
 async function openReviews(pid) {
   State._reviewProductId = pid;
   State._reviewRating = 0;
+  State._reviewPhotoFileId = '';
   const page = document.getElementById('page-reviews');
   if (page) page.style.display = 'block';
   State.tg?.BackButton?.show?.();
@@ -965,7 +1170,7 @@ async function openReviews(pid) {
   if (!listEl) return;
   if (!reviews.length) {
     listEl.innerHTML = `<div class="empty-state">
-      <div class="empty-state__icon">⭐</div>
+      <div class="empty-state__icon"><img src="assets/cube.svg" style="width:40px;opacity:.3"></div>
       <div class="empty-state__title">Отзывов пока нет</div>
       <div class="empty-state__desc">Станьте первым!</div>
     </div>`;
@@ -974,14 +1179,39 @@ async function openReviews(pid) {
   listEl.innerHTML = reviews.map(r => {
     const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
     const date = fmtDate(r.created_at);
-    return `<div class="order-card animate-fade" style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="color:#ffd700;font-size:16px">${stars}</span>
-        <span style="font-size:12px;color:var(--text3)">${date}</span>
+    const name = r.first_name || 'Покупатель';
+    const uname = r.username ? `@${r.username}` : '';
+    const initials = name.charAt(0).toUpperCase();
+    return `<div class="review-card animate-fade">
+      <div class="review-card__header">
+        <div class="review-avatar">${initials}</div>
+        <div class="review-card__user">
+          <div class="review-card__name">${name}</div>
+          ${uname ? `<div class="review-card__username">${uname}</div>` : ''}
+        </div>
+        <div style="margin-left:auto;text-align:right">
+          <div style="color:#ffd700;font-size:14px">${stars}</div>
+          <div style="font-size:11px;color:var(--text3)">${date}</div>
+        </div>
       </div>
-      <div style="font-size:14px;color:var(--text);line-height:1.5">${r.comment}</div>
+      <div class="review-card__text">${r.comment}</div>
+      ${r.photo_file_id ? `<div class="review-card__photo" id="rvph-${r.id}"><img src="assets/cube.svg" style="width:24px;opacity:.3"></div>` : ''}
     </div>`;
   }).join('');
+
+  // Load review photos
+  reviews.forEach(r => {
+    if (r.photo_file_id) {
+      const container = document.getElementById(`rvph-${r.id}`);
+      if (container) {
+        const img = document.createElement('img');
+        img.style.cssText = 'width:100%;border-radius:10px;display:none';
+        container.innerHTML = '';
+        container.appendChild(img);
+        loadProductImgEl(r.photo_file_id, img, null);
+      }
+    }
+  });
 }
 
 function closeReviews() {
@@ -993,9 +1223,12 @@ function closeReviews() {
 function openWriteReview() {
   if (!State.user?.id) { toast('Войдите через Telegram', 'error'); return; }
   State._reviewRating = 0;
+  State._reviewPhotoFileId = '';
   setReviewRating(0);
   const ta = document.getElementById('review-comment');
   if (ta) ta.value = '';
+  const charCount = document.getElementById('review-char-count');
+  if (charCount) charCount.textContent = '0 / 80 мин.';
   const modal = document.getElementById('write-review-modal');
   if (modal) modal.style.display = 'flex';
 }
@@ -1013,30 +1246,40 @@ function setReviewRating(n) {
   });
 }
 
+function onReviewCommentInput(ta) {
+  const len = ta.value.length;
+  const el = document.getElementById('review-char-count');
+  if (el) {
+    el.textContent = `${len} / 80 мин.`;
+    el.style.color = len >= 80 ? 'var(--primary)' : 'var(--text3)';
+  }
+}
+
 async function submitReview() {
   const pid = State._reviewProductId;
   const rating = State._reviewRating;
   const comment = document.getElementById('review-comment')?.value?.trim();
   if (!rating) { toast('Выберите оценку', 'error'); return; }
-  if (!comment) { toast('Напишите комментарий', 'error'); return; }
+  if (!comment || comment.length < 80) { toast('Минимум 80 символов в отзыве', 'error'); return; }
   if (!State.user?.id) { toast('Войдите через Telegram', 'error'); return; }
 
-  const btn = document.querySelector('#write-review-modal .btn-primary');
-  if (btn) { btn.textContent = 'Отправляем...'; btn.disabled = true; }
+  const submitBtn = document.querySelector('#write-review-modal .btn-primary');
+  if (submitBtn) { submitBtn.textContent = 'Отправляем...'; submitBtn.disabled = true; }
 
   const res = await apiPost(`/products/${pid}/reviews`, {
     user_id: State.user.id,
     order_id: 0,
     rating,
     comment,
+    photo_file_id: State._reviewPhotoFileId || '',
   });
 
-  if (btn) { btn.textContent = 'Отправить отзыв'; btn.disabled = false; }
+  if (submitBtn) { submitBtn.textContent = 'Отправить отзыв'; submitBtn.disabled = false; }
 
   if (res?.success) {
     closeWriteReview();
     toast('Отзыв отправлен!', 'success');
-    openReviews(pid); // reload
+    openReviews(pid);
     State.tg?.HapticFeedback?.notificationOccurred?.('success');
   } else {
     toast(res?.detail || 'Ошибка при отправке', 'error');
