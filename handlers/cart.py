@@ -99,7 +99,6 @@ async def cb_cart_checkout(cb: types.CallbackQuery, state: FSMContext):
     if promo_code:
         promo, err = await validate_promo(
             promo_code, cb.from_user.id,
-            allowed_types=["cart_discount_percent", "cart_discount_fixed"],
         )
         if promo:
             total, discount, promo_info = apply_promo_to_price(total, promo)
@@ -173,9 +172,7 @@ async def proc_cart_promo(msg: types.Message, state: FSMContext):
         await msg.answer("✅ Промокод удалён.", reply_markup=kb_back("cart_checkout"))
         return
 
-    promo, err = await validate_promo(code, msg.from_user.id, allowed_types=[
-        "cart_discount_percent", "cart_discount_fixed",
-    ])
+    promo, err = await validate_promo(code, msg.from_user.id)
     if not promo:
         await msg.answer(f"⚠️ {err}", reply_markup=kb_back("cart_checkout"))
         return
