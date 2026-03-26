@@ -18,7 +18,7 @@ const State = {
   searchQuery: '',
   currentProduct: null,
   currentImgIndex: 0,
-  apiBase: 'bot-api-production-4a58.up.railway.app',
+  apiBase: 'bot-api-production-2f78.up.railway.app',
 };
 
 // ─── Telegram WebApp Init ─────────────────────────────
