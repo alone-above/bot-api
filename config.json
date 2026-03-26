@@ -25,10 +25,26 @@
     "btn_about": "О нас"
   },
   "features": [
-    { "icon": "truck",   "title": "Быстрая доставка",   "desc": "По всему Казахстану" },
-    { "icon": "shield",  "title": "Гарантия качества",  "desc": "Оригинальные товары" },
-    { "icon": "refresh", "title": "Возврат 14 дней",    "desc": "Без лишних вопросов" },
-    { "icon": "gift",    "title": "Бонусная программа", "desc": "До 10% кэшбэка" }
+    {
+      "icon": "truck",
+      "title": "Быстрая доставка",
+      "desc": "По всему Казахстану"
+    },
+    {
+      "icon": "shield",
+      "title": "Гарантия качества",
+      "desc": "Оригинальные товары"
+    },
+    {
+      "icon": "refresh",
+      "title": "Возврат 14 дней",
+      "desc": "Без лишних вопросов"
+    },
+    {
+      "icon": "gift",
+      "title": "Бонусная программа",
+      "desc": "До 10% кэшбэка"
+    }
   ],
   "sale_banner": {
     "title": "Скидки до",
@@ -48,7 +64,7 @@
     "kaspi_phone": "+7XXXXXXXXXX"
   },
   "api": {
-    "base_url": "https://your-api-url.railway.app"
+    "base_url": ""
   },
   "links": {
     "catalog_btn": "#catalog",

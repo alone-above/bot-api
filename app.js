@@ -55,15 +55,19 @@ function toast(msg, type = 'info', dur = 2500) {
 
 // ─── API ──────────────────────────────────────────────
 async function api(path, opts = {}) {
+  if (!State.apiBase) return null;          // нет API — молча вернуть null
   try {
     const userId = State.user?.id;
     const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
     if (userId) headers['X-User-Id'] = userId;
-    const res = await fetch(State.apiBase + path, { ...opts, headers });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000); // 8 сек таймаут
+    const res = await fetch(State.apiBase + path, { ...opts, headers, signal: controller.signal });
+    clearTimeout(timer);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (e) {
-    console.error('API error:', e);
+    if (e.name !== 'AbortError') console.warn('API:', path, e.message);
     return null;
   }
 }
@@ -848,24 +852,28 @@ async function init() {
   favsLoad();
   updateFavBadge();
 
-  // Load config
+  // Load config (fast — local file)
   await loadConfig();
 
-  // Show loader
+  // Hide loader immediately — UI opens regardless of API
   const loader = document.getElementById('app-loader');
+  if (loader) {
+    loader.style.opacity = '0';
+    loader.style.transition = 'opacity 0.3s';
+    setTimeout(() => loader.remove(), 350);
+  }
 
-  // Load catalog from API
-  await loadCatalog();
-
-  // Hide loader
-  if (loader) { loader.style.opacity = '0'; setTimeout(() => loader.remove(), 300); }
-
-  // Navigate to home
+  // Navigate to home first — user sees UI instantly
   navigate('home');
 
   // Register back button
   if (State.tg?.BackButton) {
     State.tg.BackButton.hide();
+  }
+
+  // Load catalog in background (non-blocking)
+  if (State.apiBase) {
+    loadCatalog().catch(e => console.warn('Catalog load failed:', e));
   }
 }
 
