@@ -64,7 +64,7 @@
     "kaspi_phone": "+7XXXXXXXXXX"
   },
   "api": {
-    "base_url": ""
+    "base_url": "https://bot-api-production-2f78.up.railway.app"
   },
   "links": {
     "catalog_btn": "#catalog",
