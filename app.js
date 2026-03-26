@@ -481,6 +481,9 @@ function renderProductDetail(p) {
       <button class="btn btn-outline btn-icon" onclick="wishToggle(${p.id},document.getElementById('detail-wish-btn'))" title="В избранное">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
       </button>
+      <button class="btn btn-outline btn-icon" onclick="openReviews(${p.id})" title="Отзывы">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      </button>
       ${p.stock > 0
         ? `<button class="btn btn-primary btn-full" onclick="addToCartFromDetail()">🛒 В корзину</button>`
         : `<button class="btn btn-full" style="background:var(--bg3);color:var(--text3)" disabled>Нет в наличии</button>`}
@@ -931,3 +934,119 @@ window.openProduct = _openProductCore;
 
 // ─── Boot ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', init);
+
+// ─── Reviews ──────────────────────────────────────────
+State._reviewProductId = null;
+State._reviewRating = 0;
+
+async function openReviews(pid) {
+  State._reviewProductId = pid;
+  State._reviewRating = 0;
+  const page = document.getElementById('page-reviews');
+  if (page) page.style.display = 'block';
+  State.tg?.BackButton?.show?.();
+  State.tg?.BackButton?.onClick?.(() => closeReviews());
+
+  const listEl = document.getElementById('reviews-list');
+  if (listEl) listEl.innerHTML = '<div class="empty-state"><div class="loader-spinner" style="margin:0 auto"></div></div>';
+
+  const res = await api(`/products/${pid}/reviews`);
+  const reviews = res?.reviews || [];
+  const avg = res?.avg_rating || 0;
+  const count = res?.count || 0;
+
+  const avgEl = document.getElementById('reviews-avg');
+  const starsEl = document.getElementById('reviews-stars');
+  const countEl = document.getElementById('reviews-count');
+  if (avgEl) avgEl.textContent = avg ? avg.toFixed(1) : '—';
+  if (starsEl) starsEl.textContent = avg ? ('★'.repeat(Math.round(avg)) + '☆'.repeat(5 - Math.round(avg))) : '☆☆☆☆☆';
+  if (countEl) countEl.textContent = `${count} отзыв${count === 1 ? '' : count < 5 ? 'а' : 'ов'}`;
+
+  if (!listEl) return;
+  if (!reviews.length) {
+    listEl.innerHTML = `<div class="empty-state">
+      <div class="empty-state__icon">⭐</div>
+      <div class="empty-state__title">Отзывов пока нет</div>
+      <div class="empty-state__desc">Станьте первым!</div>
+    </div>`;
+    return;
+  }
+  listEl.innerHTML = reviews.map(r => {
+    const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+    const date = fmtDate(r.created_at);
+    return `<div class="order-card animate-fade" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="color:#ffd700;font-size:16px">${stars}</span>
+        <span style="font-size:12px;color:var(--text3)">${date}</span>
+      </div>
+      <div style="font-size:14px;color:var(--text);line-height:1.5">${r.comment}</div>
+    </div>`;
+  }).join('');
+}
+
+function closeReviews() {
+  const page = document.getElementById('page-reviews');
+  if (page) page.style.display = 'none';
+  State.tg?.BackButton?.hide?.();
+}
+
+function openWriteReview() {
+  if (!State.user?.id) { toast('Войдите через Telegram', 'error'); return; }
+  State._reviewRating = 0;
+  setReviewRating(0);
+  const ta = document.getElementById('review-comment');
+  if (ta) ta.value = '';
+  const modal = document.getElementById('write-review-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeWriteReview() {
+  const modal = document.getElementById('write-review-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function setReviewRating(n) {
+  State._reviewRating = n;
+  document.querySelectorAll('#star-picker span').forEach((s, i) => {
+    s.textContent = i < n ? '★' : '☆';
+    s.style.color = i < n ? '#ffd700' : 'var(--text3)';
+  });
+}
+
+async function submitReview() {
+  const pid = State._reviewProductId;
+  const rating = State._reviewRating;
+  const comment = document.getElementById('review-comment')?.value?.trim();
+  if (!rating) { toast('Выберите оценку', 'error'); return; }
+  if (!comment) { toast('Напишите комментарий', 'error'); return; }
+  if (!State.user?.id) { toast('Войдите через Telegram', 'error'); return; }
+
+  const btn = document.querySelector('#write-review-modal .btn-primary');
+  if (btn) { btn.textContent = 'Отправляем...'; btn.disabled = true; }
+
+  const res = await apiPost(`/products/${pid}/reviews`, {
+    user_id: State.user.id,
+    order_id: 0,
+    rating,
+    comment,
+  });
+
+  if (btn) { btn.textContent = 'Отправить отзыв'; btn.disabled = false; }
+
+  if (res?.success) {
+    closeWriteReview();
+    toast('Отзыв отправлен!', 'success');
+    openReviews(pid); // reload
+    State.tg?.HapticFeedback?.notificationOccurred?.('success');
+  } else {
+    toast(res?.detail || 'Ошибка при отправке', 'error');
+  }
+}
+
+function toggleHeaderSearch(btn) {
+  const wrap = document.getElementById('header-search-wrap');
+  if (!wrap) return;
+  const isOpen = wrap.style.display !== 'none';
+  wrap.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) document.getElementById('header-search-input')?.focus();
+}
