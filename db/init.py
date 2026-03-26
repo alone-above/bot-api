@@ -255,6 +255,8 @@ async def init_db():
             "ALTER TABLE kaspi_payments ADD COLUMN IF NOT EXISTS buyer_note TEXT DEFAULT ''",
             "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS file_id TEXT DEFAULT ''",
             "ALTER TABLE complaints ADD COLUMN IF NOT EXISTS file_type TEXT DEFAULT ''",
+            "ALTER TABLE reviews ADD COLUMN IF NOT EXISTS photo_file_id TEXT DEFAULT ''",
+            "ALTER TABLE reviews ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT ''",
         ]
         for sql in migrations:
             try:
