@@ -13,6 +13,7 @@ from db.catalog import get_categories, get_products, get_product
 from db.cart import cart_get, wish_get
 from db.users import get_user
 from db.orders import create_order, get_user_orders
+from db.misc import get_reviews, add_review, get_avg_rating, get_review_count
 from config import SHOP_NAME, SUPPORT_USERNAME, KASPI_PHONE, MANAGER_ID
 from aiogram import Bot
 from db.pool import db_run
@@ -398,3 +399,51 @@ async def get_user_orders_endpoint(user_id: int):
     except Exception as e:
         print(f"❌ Ошибка при получении заказов: {e}")
         return {"orders": []}
+
+
+# ══════════════════════════════════════════════
+# ОТЗЫВЫ
+# ══════════════════════════════════════════════
+
+@app.get("/products/{product_id}/reviews")
+async def get_product_reviews(product_id: int, limit: int = 20):
+    try:
+        reviews = await get_reviews(product_id, limit=limit)
+        avg = await get_avg_rating(product_id)
+        count = await get_review_count(product_id)
+        return {
+            "reviews": [
+                {
+                    "id": r.get("id"),
+                    "rating": r.get("rating"),
+                    "comment": r.get("comment"),
+                    "created_at": r.get("created_at"),
+                }
+                for r in reviews
+            ],
+            "avg_rating": avg,
+            "count": count,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ReviewRequest(BaseModel):
+    user_id: int
+    order_id: int = 0
+    rating: int
+    comment: str
+
+@app.post("/products/{product_id}/reviews")
+async def post_product_review(product_id: int, req: ReviewRequest):
+    try:
+        if not 1 <= req.rating <= 5:
+            raise HTTPException(status_code=400, detail="rating must be 1-5")
+        if not req.comment.strip():
+            raise HTTPException(status_code=400, detail="comment required")
+        await add_review(req.user_id, product_id, req.order_id, req.rating, req.comment.strip())
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
