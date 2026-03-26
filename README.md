@@ -1,55 +1,59 @@
-# Alone Above Shop — Bot API
+# Alone Above Shop — Telegram Mini App
 
-## Изменения в этой версии
+Чистый HTML/CSS/JS веб-апп без Node.js и Next.js.
+Открывается напрямую через `index.html`.
 
-### Новые поля товара (15 шагов при добавлении)
-1. Категория
-2. Название
-3. Описание
-4. Цена (актуальная)
-5. **Цена до скидки** (зачёркнутая)
-6. **Скидка %**
-7. Размеры
-8. Остаток
-9. **Срок доставки** (например: 3–7 дней)
-10. **Гарантия** (дней)
-11. **Срок возврата** (дней)
-12. Телефон продавца
-13. Telegram продавца
-14. **Аватар продавца** (фото или "нет" → логотип магазина)
-15. Обложка товара (card)
-16. **Галерея** (несколько фото по одному → "готово")
+## Файлы
 
-### DB миграции (автоматически)
-Новые колонки добавляются при старте через `ALTER TABLE IF NOT EXISTS`:
-- `original_price`, `discount_percent`
-- `delivery_days`, `warranty_days`, `return_days`
-- `seller_avatar`
+| Файл | Описание |
+|------|----------|
+| `index.html` | Главная точка входа (открывать именно его) |
+| `style.css` | Все стили — цвета, анимации, компоненты |
+| `app.js` | Логика: Telegram API, корзина, каталог, галерея |
+| `config.json` | **Настройки для изменения без кода** |
+| `assets/logo.svg` | Логотип магазина |
 
-### Новый API endpoint
-- `GET /products/{id}/gallery` — возвращает card + все фото галереи
+## Настройка через config.json
 
-## Запуск
+Все визуальные данные меняются только в `config.json`:
 
+```json
+{
+  "shop": {
+    "name": "Название магазина",
+    "logo": "assets/logo.svg"
+  },
+  "colors": {
+    "primary": "#78E700"
+  },
+  "api": {
+    "base_url": "https://ВАШ-API.railway.app"
+  },
+  "telegram": {
+    "channel": "https://t.me/ВАШ_КАНАЛ",
+    "support": "https://t.me/ВАШ_ПОДДЕРЖКА"
+  }
+}
+```
+
+## Деплой
+
+### Railway / любой статический хостинг
+1. Загрузите папку `webapp/` на хостинг
+2. Укажите `index.html` как точку входа
+3. В `config.json` → `api.base_url` → укажите URL вашего бота-API
+
+### Локально (для теста)
 ```bash
-cp .env.example .env   # или создайте .env вручную
-pip install -r requirements.txt
-
-# Бот
-python main.py
-
-# API (отдельно)
-python run_api.py
+# Простой HTTP сервер
+python3 -m http.server 8080
+# Откройте http://localhost:8080
 ```
 
-## .env переменные
-
-```
-BOT_TOKEN=...
-ADMIN_IDS=123456789
-MANAGER_ID=123456789
-SHOP_NAME=Alone Above Shop
-SUPPORT_USERNAME=@support
-KASPI_PHONE=+77001234567
-DATABASE_URL=postgresql://...
+### Подключение к Telegram боту
+В боте укажите URL веб-аппа при создании кнопки:
+```python
+from aiogram.types import WebAppInfo, InlineKeyboardButton
+btn = InlineKeyboardButton(text="🛍 Открыть магазин",
+      web_app=WebAppInfo(url="https://ВАШ_САЙТ/index.html"))
 ```
