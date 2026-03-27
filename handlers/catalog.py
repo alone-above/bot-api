@@ -203,8 +203,13 @@ async def cb_gallery(cb: types.CallbackQuery, bot: Bot):
 
     idx   = max(0, min(idx, len(gallery) - 1))
     item  = gallery[idx]
-    fid   = item["file_id"]
-    mt    = item["media_type"]
+    # gallery items can be either {"file_id": ..., "media_type": ...} or plain strings
+    if isinstance(item, str):
+        fid = item
+        mt  = "photo"
+    else:
+        fid = item.get("file_id", "")
+        mt  = item.get("media_type", "photo")
     total = len(gallery)
 
     nav = []
@@ -217,13 +222,25 @@ async def cb_gallery(cb: types.CallbackQuery, bot: Bot):
     markup = kb(nav, [btn("К товару", f"prod_{pid}", icon="back")])
     caption = f"🖼 <b>Галерея</b>  {idx+1}/{total}  —  {p['name']}"
 
-    # Попробуем просто обновить подпись/текст, не создавая новое сообщение.
+    # Удаляем старое и отправляем новое медиа
     try:
-        if (cb.message.photo or cb.message.video or cb.message.animation or
-                cb.message.document):
-            await cb.message.edit_caption(caption=caption, parse_mode="HTML", reply_markup=markup)
+        await cb.message.delete()
+    except Exception:
+        pass
+
+    try:
+        if mt == "photo":
+            await bot.send_photo(cb.from_user.id, fid, caption=caption,
+                                 parse_mode="HTML", reply_markup=markup)
+        elif mt == "video":
+            await bot.send_video(cb.from_user.id, fid, caption=caption,
+                                 parse_mode="HTML", reply_markup=markup)
+        elif mt == "animation":
+            await bot.send_animation(cb.from_user.id, fid, caption=caption,
+                                     parse_mode="HTML", reply_markup=markup)
         else:
-            await cb.message.edit_text(caption, parse_mode="HTML", reply_markup=markup)
+            await bot.send_photo(cb.from_user.id, fid, caption=caption,
+                                 parse_mode="HTML", reply_markup=markup)
     except Exception:
         await bot.send_message(cb.from_user.id, caption, parse_mode="HTML", reply_markup=markup)
     await cb.answer()
