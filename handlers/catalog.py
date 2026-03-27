@@ -76,7 +76,7 @@ async def cb_cat(cb: types.CallbackQuery, bot: Bot):
     for p in products:
         stock_mark = "" if p["stock"] > 0 else " ✖"
         rows.append([btn(f"{p['name']} — {fmt_price(p['price'])}{stock_mark}",
-                         f"prod_{p['id']}", icon="bag")])
+                         f"prod_{p['id']}")])
     rows.append([btn("Назад", "shop", icon="back")])
 
     text = f"<b>Каталог</b>\n\n<blockquote>Выберите товар:</blockquote>"
