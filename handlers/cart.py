@@ -25,7 +25,7 @@ async def _show_cart(uid: int, edit_msg=None, send_fn=None):
     items = await cart_get(uid)
     if not items:
         text = (
-            f"🛒 <b>Корзина пуста</b>\n\n"
+            f"{ae('cart')} <b>Корзина пуста</b>\n\n"
             f"<blockquote>Добавьте товары из каталога.</blockquote>"
         )
         markup = kb([btn("В каталог", "shop", icon="shop")],
@@ -38,9 +38,11 @@ async def _show_cart(uid: int, edit_msg=None, send_fn=None):
             lines.append(f"• <b>{i['name']}</b>  ({i['size']})  "
                          f"{fmt_price(i['price'])}  {avail}")
         text = (
-            f"🛒 <b>Корзина</b>  ({len(items)} поз.)\n\n"
+            f"{ae('cart')} <b>Корзина</b>  ({len(items)} поз.)\n\n"
+            f"━━━━━━━━━━━━━━━━━\n"
             + "\n".join(lines) +
-            f"\n\n💰 <b>Итого:</b> {fmt_price(total)}"
+            f"\n━━━━━━━━━━━━━━━━━\n"
+            f"{ae('money')} <b>Итого:</b> {fmt_price(total)}"
         )
         rows = []
         for i in items:
@@ -54,22 +56,12 @@ async def _show_cart(uid: int, edit_msg=None, send_fn=None):
         markup = kb(*rows)
 
     if edit_msg:
-        # Если сообщение содержит медиа — удаляем и отправляем новое текстовое
         try:
-            if edit_msg.photo or edit_msg.video or edit_msg.animation or edit_msg.document:
-                await edit_msg.delete()
-                await edit_msg.answer(text, parse_mode="HTML", reply_markup=markup)
-                return
             await edit_msg.edit_text(text, parse_mode="HTML", reply_markup=markup)
             return
         except Exception:
             try:
                 await edit_msg.delete()
-            except Exception:
-                pass
-            try:
-                await edit_msg.answer(text, parse_mode="HTML", reply_markup=markup)
-                return
             except Exception:
                 pass
     if send_fn:
@@ -139,11 +131,7 @@ async def cb_cart_checkout(cb: types.CallbackQuery, state: FSMContext):
     markup = kb(*rows)
 
     try:
-        if cb.message.photo or cb.message.video or cb.message.animation or cb.message.document:
-            await cb.message.delete()
-            await cb.message.answer(text, parse_mode="HTML", reply_markup=markup)
-        else:
-            await cb.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+        await cb.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
     except Exception:
         try:
             await cb.message.delete()
@@ -312,22 +300,10 @@ async def _show_wishlist(uid: int, edit_msg=None, send_fn=None):
 
     if edit_msg:
         try:
-            if edit_msg.photo or edit_msg.video or edit_msg.animation or edit_msg.document:
-                await edit_msg.delete()
-                await edit_msg.answer(text, parse_mode="HTML", reply_markup=markup)
-                return
             await edit_msg.edit_text(text, parse_mode="HTML", reply_markup=markup)
             return
         except Exception:
-            try:
-                await edit_msg.delete()
-            except Exception:
-                pass
-            try:
-                await edit_msg.answer(text, parse_mode="HTML", reply_markup=markup)
-                return
-            except Exception:
-                pass
+            pass
     if send_fn:
         await send_fn(text, parse_mode="HTML", reply_markup=markup)
 

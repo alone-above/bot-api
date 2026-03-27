@@ -47,17 +47,6 @@ async def serve_index():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
     return FileResponse(path, media_type="text/html")
 
-# Алиасы для Mini App — если BotFather настроен на /app или /shop
-@app.get("/app")
-async def serve_app():
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
-    return FileResponse(path, media_type="text/html")
-
-@app.get("/shop")
-async def serve_shop():
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
-    return FileResponse(path, media_type="text/html")
-
 # Debug info
 @app.get("/debug")
 async def debug_info():
@@ -438,10 +427,6 @@ async def create_order_handler(order: OrderRequest):
 
 @app.get("/receipt")
 async def serve_receipt(data: str = ""):
-    # Если data пустой — кто-то открыл /receipt напрямую → редирект на главную
-    if not data:
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url="/", status_code=302)
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "receipt.html")
     return FileResponse(path, media_type="text/html")
 

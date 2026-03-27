@@ -47,20 +47,12 @@ async def cb_shop(cb: types.CallbackQuery, bot: Bot):
     rows = [[btn(c["name"], f"cat_{c['id']}", icon="folder")] for c in cats]
     rows.append([btn("Дропы", "drops_menu", icon="fire")])
     rows.append([btn("Назад", "main", icon="back")])
-    markup = kb(*rows)
-    # Пробуем отредактировать текущее сообщение, если не получается — удаляем и отправляем новое
+    # Удаляем старое сообщение и отправляем заново, чтобы корректно показать медиа.
     try:
-        if cb.message.photo or cb.message.video or cb.message.animation:
-            await cb.message.delete()
-            await bot.send_message(cb.from_user.id, header, parse_mode="HTML", reply_markup=markup)
-        else:
-            await cb.message.edit_text(header, parse_mode="HTML", reply_markup=markup)
+        await cb.message.delete()
     except Exception:
-        try:
-            await cb.message.delete()
-        except Exception:
-            pass
-        await bot.send_message(cb.from_user.id, header, parse_mode="HTML", reply_markup=markup)
+        pass
+    await send_media(bot, cb.from_user.id, header, "catalog_menu", markup=kb(*rows))
     await cb.answer()
 
 
@@ -76,23 +68,16 @@ async def cb_cat(cb: types.CallbackQuery, bot: Bot):
     for p in products:
         stock_mark = "" if p["stock"] > 0 else " ✖"
         rows.append([btn(f"{p['name']} — {fmt_price(p['price'])}{stock_mark}",
-                         f"prod_{p['id']}")])
+                         f"prod_{p['id']}", icon="bag")])
     rows.append([btn("Назад", "shop", icon="back")])
 
-    text = f"<b>Каталог</b>\n\n<blockquote>Выберите товар:</blockquote>"
-    markup = kb(*rows)
+    text = f"{ae('folder')} <b>Каталог</b>\n\n<blockquote>Выберите товар:</blockquote>"
     try:
-        if cb.message.photo or cb.message.video or cb.message.animation or cb.message.document:
-            await cb.message.delete()
-            await bot.send_message(cb.from_user.id, text, parse_mode="HTML", reply_markup=markup)
-        else:
-            await cb.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+        await cb.message.edit_text(text, parse_mode="HTML",
+                                   reply_markup=kb(*rows))
     except Exception:
-        try:
-            await cb.message.delete()
-        except Exception:
-            pass
-        await bot.send_message(cb.from_user.id, text, parse_mode="HTML", reply_markup=markup)
+        await bot.send_message(cb.from_user.id, text, parse_mode="HTML",
+                               reply_markup=kb(*rows))
     await cb.answer()
 
 
@@ -114,18 +99,19 @@ async def cb_prod(cb: types.CallbackQuery, bot: Bot):
     except Exception:
         gallery = []
 
-    stars = "★" * round(avg) + "☆" * (5 - round(avg)) if avg else "☆☆☆☆☆"
+    stars = "★" * round(avg) + "☆" * (5 - round(avg)) if avg else "—"
     short = f"  <code>#{p['short_id']}</code>" if p.get("short_id") else ""
     sizes_s = ", ".join(sizes) if sizes else "—"
-    stock_line = "✅ В наличии" if p['stock'] > 0 else "❌ Нет в наличии"
 
     text = (
-        f"<b>{p['name']}</b>{short}\n\n"
+        f"{ae('bag')} <b>{p['name']}</b>{short}\n\n"
         f"<blockquote>{p['description']}</blockquote>\n\n"
-        f"💰 <b>Цена:</b> <code>{fmt_price(p['price'])}</code>\n"
-        f"📐 <b>Размеры:</b> {sizes_s}\n"
-        f"📦 <b>Наличие:</b> {stock_line}\n"
-        f"⭐ <b>Рейтинг:</b> {stars} ({rcnt} отзывов)"
+        f"━━━━━━━━━━━━━━━━━\n"
+        f"{ae('money')} <b>Цена:</b> <code>{fmt_price(p['price'])}</code>\n"
+        f"{ae('size')} <b>Размеры:</b> {sizes_s}\n"
+        f"{ae('box')} <b>Наличие:</b> {'✅ В наличии' if p['stock'] > 0 else '❌ Нет в наличии'}\n"
+        f"{ae('star')} <b>Рейтинг:</b> {stars} ({rcnt} отзывов)\n"
+        f"━━━━━━━━━━━━━━━━━"
     )
 
     markup = kb_product(pid, in_wish, len(gallery))
@@ -137,22 +123,6 @@ async def cb_prod(cb: types.CallbackQuery, bot: Bot):
         fid = p["card_file_id"]
         mtype = p.get("card_media_type", "photo")
 
-        # Если текущее сообщение уже медиа того же типа — пробуем edit_caption
-        try:
-            can_edit_caption = (
-                (mtype == "photo" and cb.message.photo) or
-                (mtype == "video" and cb.message.video) or
-                (mtype == "animation" and cb.message.animation) or
-                (mtype == "document" and cb.message.document)
-            )
-            if can_edit_caption:
-                await cb.message.edit_caption(caption=text, parse_mode="HTML", reply_markup=markup)
-                await cb.answer()
-                return
-        except Exception:
-            pass
-
-        # Иначе удаляем и отправляем новое
         try:
             await cb.message.delete()
         except Exception:
@@ -171,9 +141,13 @@ async def cb_prod(cb: types.CallbackQuery, bot: Bot):
             elif mtype == "document":
                 await bot.send_document(cb.from_user.id, fid, caption=text,
                                         parse_mode="HTML", reply_markup=markup)
+            else:
+                raise ValueError(f"Unsupported media type: {mtype}")
+
             await cb.answer()
             return
         except Exception:
+            # Если не получилось отправить медиа, продолжим обычным текстом.
             pass
 
     try:
@@ -203,13 +177,8 @@ async def cb_gallery(cb: types.CallbackQuery, bot: Bot):
 
     idx   = max(0, min(idx, len(gallery) - 1))
     item  = gallery[idx]
-    # gallery items can be either {"file_id": ..., "media_type": ...} or plain strings
-    if isinstance(item, str):
-        fid = item
-        mt  = "photo"
-    else:
-        fid = item.get("file_id", "")
-        mt  = item.get("media_type", "photo")
+    fid   = item["file_id"]
+    mt    = item["media_type"]
     total = len(gallery)
 
     nav = []
@@ -222,25 +191,13 @@ async def cb_gallery(cb: types.CallbackQuery, bot: Bot):
     markup = kb(nav, [btn("К товару", f"prod_{pid}", icon="back")])
     caption = f"🖼 <b>Галерея</b>  {idx+1}/{total}  —  {p['name']}"
 
-    # Удаляем старое и отправляем новое медиа
+    # Попробуем просто обновить подпись/текст, не создавая новое сообщение.
     try:
-        await cb.message.delete()
-    except Exception:
-        pass
-
-    try:
-        if mt == "photo":
-            await bot.send_photo(cb.from_user.id, fid, caption=caption,
-                                 parse_mode="HTML", reply_markup=markup)
-        elif mt == "video":
-            await bot.send_video(cb.from_user.id, fid, caption=caption,
-                                 parse_mode="HTML", reply_markup=markup)
-        elif mt == "animation":
-            await bot.send_animation(cb.from_user.id, fid, caption=caption,
-                                     parse_mode="HTML", reply_markup=markup)
+        if (cb.message.photo or cb.message.video or cb.message.animation or
+                cb.message.document):
+            await cb.message.edit_caption(caption=caption, parse_mode="HTML", reply_markup=markup)
         else:
-            await bot.send_photo(cb.from_user.id, fid, caption=caption,
-                                 parse_mode="HTML", reply_markup=markup)
+            await cb.message.edit_text(caption, parse_mode="HTML", reply_markup=markup)
     except Exception:
         await bot.send_message(cb.from_user.id, caption, parse_mode="HTML", reply_markup=markup)
     await cb.answer()
